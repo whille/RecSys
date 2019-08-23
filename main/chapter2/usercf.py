@@ -30,8 +30,7 @@ class UserCF(object):
             print("开始载入用户协同矩阵....", file=sys.stderr)
             self.user_sim_matrix = load_file(sim_matrix_path)
             print("载入协同过滤矩阵完成", file=sys.stderr)
-        except BaseException, e:
-            print(e)
+        except BaseException:
             print("载入用户协同过滤矩阵失败，重新计算协同过滤矩阵", file=sys.stderr)
             # 计算用户协同矩阵
             self.user_sim_matrix = self.user_similarity()
@@ -55,7 +54,7 @@ class UserCF(object):
                 item_user.setdefault(item, set())
                 item_user[item].add(user)
         # 建立用户协同过滤矩阵C[u][v] = count
-        C = defautldict(lambda: defaultdict(float))
+        C = defaultdict(lambda: defaultdict(float))
         N = defaultdict(int)  # 记录用户购买商品数
         for item, users in item_user.items():
             for u in users:
