@@ -1,10 +1,10 @@
 #! /usr/bin/python3
 # coding=utf-8
-
-'''
-    评价
-'''
+"""
+    评分
+"""
 import math
+from operator import itemgetter
 
 
 def RMSE(records):
@@ -12,7 +12,8 @@ def RMSE(records):
         @param records: 预测评价与真实评价记录的一个list
         @return: RMSE
     """
-    numerator = sum([(pred_rating - actual_rating)**2 for pred_rating, actual_rating in records])
+    numerator = sum([(pred_rating - actual_rating)**2
+                     for pred_rating, actual_rating in records])
     denominator = float(len(records))
     return math.sqrt(numerator / denominator)
 
@@ -22,7 +23,8 @@ def MSE(records):
         @param records: 预测评价与真实评价记录的一个list
         @return: MSE
     """
-    numerator = sum([(pred_rating - actual_rating)**2 for pred_rating, actual_rating in records])
+    numerator = sum([(pred_rating - actual_rating)**2
+                     for pred_rating, actual_rating in records])
     denominator = float(len(records))
     return numerator / denominator
 
@@ -37,14 +39,14 @@ def precision(recommends, tests):
         Precision
     """
     n_union = 0.
-    user_sum = 0.
-    for user_id, items in recommends.items():
+    test_sum = 0.
+    for uid, items in recommends.items():
         recommend_set = set(items)
-        test_set = set(tests[user_id])
+        test_set = set(tests[uid])
         n_union += len(recommend_set & test_set)
-        user_sum += len(test_set)
+        test_sum += len(test_set)
 
-    return n_union / user_sum
+    return n_union / test_sum
 
 
 def recall(recommends, tests):
@@ -56,13 +58,32 @@ def recall(recommends, tests):
     """
     n_union = 0.
     recommend_sum = 0.
-    for user_id, items in recommends.items():
+    for uid, items in recommends.items():
         recommend_set = set(items)
-        test_set = set(tests[user_id])
+        test_set = set(tests[uid])
         n_union += len(recommend_set & test_set)
         recommend_sum += len(recommend_set)
 
     return n_union / recommend_sum
+
+
+def precision_recall(recommends, tests):
+    """
+        同时计算Precision and Recall
+        @param recommends:   给用户推荐的商品，recommends为一个dict，格式为 { userID : 推荐的物品 }
+        @param tests:  测试集，同样为一个dict，格式为 { userID : 实际发生事务的物品 }
+        @return: float, float
+    """
+    n_union = 0.
+    test_sum = 0.
+    recommend_sum = 0.
+    for uid, items in recommends.items():
+        recommend_set = set(items)
+        test_set = set(tests[uid])
+        n_union += len(recommend_set & test_set)
+        test_sum += len(test_set)
+        recommend_sum += len(recommend_set)
+    return n_union / test_sum, n_union / recommend_sum
 
 
 def coverage(recommends, all_items):
@@ -84,10 +105,42 @@ def popularity(item_popular, recommends):
         @param recommends :  dict形式 { userID : Items }
         @return: 平均流行度
     """
-    popularity = 0.  # 流行度
+    pop = 0.  # 流行度
     n = 0.
-    for _, items in recommends.items():
+    for items in recommends.values():
         for item in items:
-            popularity += math.log(1. + item_popular.get(item, 0.))
+            pop += math.log(1. + item_popular.get(item, 0.))
             n += 1
-    return popularity / n
+    return pop / n
+
+
+def entrophy(item_popular):
+    ent = 0.
+    for pi in item_popular.values():
+        ent += pi * math.log(pi)
+    return - ent
+
+
+def GiniIndex(item_popular):
+    j = 1
+    n = len(item_popular)
+    G = 0
+    for item, weight in sorted(item_popular.items(), key=itemgetter(1)):
+        G += (2 * j - n - 1) * weight
+    return G / float(n - 1)
+
+
+def diversity(recommends, sim):
+    # TODO, sim: similarity function or data of item i and j
+    D, Du = 0., 0.
+    for uid, Ru in recommends.items():
+        sum_d = 0.
+        for items in recommends.values():
+            for i in items:
+                for j in items:
+                    if i == j:
+                        continue
+                    sum_d += sim(i, j)
+        Du = 1 - sum_d / (0.5 * len(recommends) * (len(recommends) - 1))
+        D += Du
+    return D / len(recommends)
