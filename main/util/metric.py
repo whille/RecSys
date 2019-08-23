@@ -86,6 +86,46 @@ def precision_recall(recommends, tests):
     return n_union / test_sum, n_union / recommend_sum
 
 
+def Precision_Recall(train, test, N, recommend_f):
+    hit, all_t, all_ = 0., 0, 0
+    for u in train:
+        tu = test[u]
+        rank = recommend_f(u, N)
+        for i, _ in rank:
+            if i in tu:
+                hit += 1
+        all_t += len(tu)
+        all_ += N
+    return hit / (all_t), hit / all_
+
+
+def Coverage(train, N, recommend_f):
+    recommend_items = set()
+    all_items= set()
+    for u in train:
+        for i in train[u]:
+            all_items.add(i)
+        rank = recommend_f(u, N)
+        for i, _ in rank:
+            recommend_items.add(i)
+    return 1. * len(recommend_items) / len(all_items)
+
+
+def Popularity(train, N, recommend_f):
+    item_pop = {}
+    for u, items in train.items():
+        for i in items:
+            item_pop[i] = item_pop.setdefault(i, 0) + 1
+    ret = 0
+    n = 0
+    for u in train:
+        rank = recommend_f(u, N)
+        for i, _ in rank:
+            ret += math.log(1 + item_pop[i])
+            n += 1
+    return 1. * ret / n
+
+
 def coverage(recommends, all_items):
     """
         计算覆盖率
@@ -96,7 +136,7 @@ def coverage(recommends, all_items):
     for _, items in recommends.items():
         for item in items:
             recommend_items.add(item)
-    return len(recommend_items) / len(all_items)
+    return 1. * len(recommend_items) / len(all_items)
 
 
 def popularity(item_popular, recommends):

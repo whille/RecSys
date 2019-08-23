@@ -23,7 +23,6 @@ class UserCF(object):
             @param origin_data: 原始数据
             @param sim_matrix_path:  协同矩阵保存的路径
         """
-        self.origin_data = origin_data
         # 初始化训练集
         self._init_train(origin_data)
         print("开始训练模型", file=sys.stderr)
@@ -31,11 +30,11 @@ class UserCF(object):
             print("开始载入用户协同矩阵....", file=sys.stderr)
             self.user_sim_matrix = load_file(sim_matrix_path)
             print("载入协同过滤矩阵完成", file=sys.stderr)
-        except BaseException:
+        except BaseException, e:
+            print(e)
             print("载入用户协同过滤矩阵失败，重新计算协同过滤矩阵", file=sys.stderr)
             # 计算用户协同矩阵
             self.user_sim_matrix = self.user_similarity()
-
         print("开始保存协同过滤矩阵", file=sys.stderr)
         save_file(sim_matrix_path, self.user_sim_matrix)
         print("保存协同过滤矩阵完成", file=sys.stderr)
@@ -47,17 +46,16 @@ class UserCF(object):
             self.train.setdefault(user, set())
             self.train[user].add(item)
 
-    def user_similarity(self):
+    def user_similarity(self, use_iif=False):
         """建立用户的协同过滤矩阵"""
-        # 建立用户倒排表
+        # 建立item_user倒排表
         item_user = dict()
         for user, items in self.train.items():
             for item in items:
                 item_user.setdefault(item, set())
                 item_user[item].add(user)
-
-        # 建立用户协同过滤矩阵
-        user_sim_matrix = dict()
+        # 建立用户协同过滤矩阵C[u][v] = count
+        C = defautldict(lambda: defaultdict(float))
         N = defaultdict(int)  # 记录用户购买商品数
         for item, users in item_user.items():
             for u in users:
@@ -65,15 +63,15 @@ class UserCF(object):
                 for v in users:
                     if u == v:
                         continue
-                    user_sim_matrix.setdefault(u, defaultdict(int))
-                    user_sim_matrix[u][v] += 1
-
+                    if not use_iif:
+                        C[u][v] += 1
+                    else:
+                        C[u][v] += 1. / math.log(1 + len(item_user[item]))
         # 计算相关度
-        for u, related_users in user_sim_matrix.items():
-            for v, con_items_count in related_users.items():
-                user_sim_matrix[u][v] = con_items_count / math.sqrt(N[u] * N[v])
-
-        return user_sim_matrix
+        for u in C:
+            for v in C[u]:
+                C[u][v] /= math.sqrt(N[u] * N[v])
+        return C
 
     def recommend(self, user, N, K):
         """推荐
@@ -84,15 +82,17 @@ class UserCF(object):
         """
         related_items = self.train.get(user, set)
         recommmens = dict()
-        for v, sim in sorted(self.user_sim_matrix.get(user, dict).items(),
-                             key=itemgetter(1), reverse=True)[:K]:
+        for v, sim in sorted(
+                self.user_sim_matrix.get(user, dict).items(),
+                key=itemgetter(1),
+                reverse=True)[:K]:
             for item in self.train[v]:
                 if item in related_items:
                     continue
                 recommmens.setdefault(item, 0.)
                 recommmens[item] += sim
-
-        return dict(sorted(recommmens.items(), key=itemgetter(1), reverse=True)[: N])
+        return dict(
+            sorted(recommmens.items(), key=itemgetter(1), reverse=True)[:N])
 
     def recommend_users(self, users, N, K):
         """推荐测试集
